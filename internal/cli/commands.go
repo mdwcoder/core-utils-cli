@@ -95,7 +95,11 @@ func printHelp() {
 }
 
 func printVersion() {
-	output.Printf("cu version %s (%s/%s)\n", config.AppVersion, runtime.GOOS, runtime.GOARCH)
+	output.Println(output.Bold("Core Utils CLI"))
+	output.Printf("Version:   %s\n", config.Version)
+	output.Printf("Commit:    %s\n", config.Commit)
+	output.Printf("Build date: %s\n", config.Date)
+	output.Printf("Platform:  %s/%s\n", runtime.GOOS, runtime.GOARCH)
 }
 
 func cmdRegistrySync() int {
@@ -215,7 +219,7 @@ func cmdDoctor() int {
 	output.Println("")
 
 	// CLI version
-	output.Status("CLI version", true, fmt.Sprintf("%s (%s/%s)", config.AppVersion, runtime.GOOS, runtime.GOARCH))
+	output.Status("CLI version", true, fmt.Sprintf("%s (%s/%s)", config.Version, runtime.GOOS, runtime.GOARCH))
 
 	// Platform
 	plat := platform.Current()

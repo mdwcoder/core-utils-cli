@@ -9,10 +9,18 @@ mkdir -p "${BUILD_DIR}"
 
 cd "${PROJECT_ROOT}"
 
-echo "Building cu..."
+VERSION="${VERSION:-dev}"
+COMMIT="${COMMIT:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}"
+DATE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+
 GOOS="${GOOS:-$(go env GOOS)}"
 GOARCH="${GOARCH:-$(go env GOARCH)}"
 
-go build -o "${BUILD_DIR}/cu" ./cmd/cu
+LDFLAGS="-X 'github.com/mdwcoder/core-utils-cli/internal/config.Version=${VERSION}'"
+LDFLAGS="${LDFLAGS} -X 'github.com/mdwcoder/core-utils-cli/internal/config.Commit=${COMMIT}'"
+LDFLAGS="${LDFLAGS} -X 'github.com/mdwcoder/core-utils-cli/internal/config.Date=${DATE}'"
+
+echo "Building cu (${VERSION})..."
+go build -ldflags="${LDFLAGS}" -o "${BUILD_DIR}/cu" ./cmd/cu
 
 echo "Built: ${BUILD_DIR}/cu (${GOOS}/${GOARCH})"

@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version string (e.g., v1.0.0-rc1). Defaults to ref_name."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  VERSION: ${{ inputs.version || github.ref_name }}
+  COMMIT: ${{ github.sha }}
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Run tests
+        run: go test ./...
+      - name: Build binary
+        run: |
+          mkdir -p dist/linux
+          go build -ldflags="-X 'github.com/mdwcoder/core-utils-cli/internal/config.Version=${VERSION}' -X 'github.com/mdwcoder/core-utils-cli/internal/config.Commit=${COMMIT}' -X 'github.com/mdwcoder/core-utils-cli/internal/config.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" -o dist/linux/cu ./cmd/cu
+      - name: Create AppDir structure
+        run: |
+          APPDIR="dist/appdir"
+          mkdir -p "${APPDIR}/usr/bin"
+          cp dist/linux/cu "${APPDIR}/usr/bin/"
+
+          printf '#!/bin/bash\nexec "$(dirname "$0")/usr/bin/cu" "$@"\n' > "${APPDIR}/AppRun"
+          chmod +x "${APPDIR}/AppRun"
+
+          {
+            echo '[Desktop Entry]'
+            echo 'Type=Application'
+            echo 'Name=Core Utils CLI'
+            echo 'Exec=cu'
+            echo 'Icon=core-utils-cli'
+            echo 'Categories=Development;'
+            echo 'Terminal=true'
+          } > "${APPDIR}/core-utils-cli.desktop"
+
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNwav0CAALIAbyWt4nEAAAAAElFTkSuQmCC' | base64 -d > "${APPDIR}/core-utils-cli.png"
+      - name: Build AppImage
+        run: |
+          wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O /tmp/appimagetool
+          chmod +x /tmp/appimagetool
+          export ARCH=x86_64
+          /tmp/appimagetool --no-appstream dist/appdir dist/cu-linux-amd64.AppImage
+      - name: Create Linux zip
+        run: |
+          cd dist/linux
+          zip -r9 ../cu-linux-amd64.zip cu
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cu-linux-amd64
+          path: |
+            dist/cu-linux-amd64.AppImage
+            dist/cu-linux-amd64.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Run tests
+        run: go test ./...
+      - name: Build universal binary
+        run: |
+          mkdir -p dist/macos
+          LDFLAGS="-X 'github.com/mdwcoder/core-utils-cli/internal/config.Version=${VERSION}' -X 'github.com/mdwcoder/core-utils-cli/internal/config.Commit=${COMMIT}' -X 'github.com/mdwcoder/core-utils-cli/internal/config.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+          GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/macos/cu-darwin-amd64 ./cmd/cu
+          GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/macos/cu-darwin-arm64 ./cmd/cu
+          lipo -create -output dist/macos/cu dist/macos/cu-darwin-amd64 dist/macos/cu-darwin-arm64
+      - name: Create DMG
+        run: |
+          mkdir -p "dist/dmg/Core Utils CLI"
+          cp dist/macos/cu "dist/dmg/Core Utils CLI/"
+          hdiutil create -volname "Core Utils CLI" -srcfolder "dist/dmg/Core Utils CLI" -ov -format UDZO "dist/cu-macos-universal.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cu-macos-universal
+          path: dist/cu-macos-universal.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Run tests
+        run: go test ./...
+      - name: Build binary
+        run: |
+          mkdir -p dist
+          go build -ldflags="-X 'github.com/mdwcoder/core-utils-cli/internal/config.Version=${VERSION}' -X 'github.com/mdwcoder/core-utils-cli/internal/config.Commit=${COMMIT}' -X 'github.com/mdwcoder/core-utils-cli/internal/config.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" -o dist/cu-windows-amd64.exe ./cmd/cu
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cu-windows-amd64
+          path: dist/cu-windows-amd64.exe
+
+  release:
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Generate checksums
+        run: |
+          sha256sum cu-linux-amd64/cu-linux-amd64.AppImage > checksums.txt
+          sha256sum cu-linux-amd64/cu-linux-amd64.zip >> checksums.txt
+          sha256sum cu-macos-universal/cu-macos-universal.dmg >> checksums.txt
+          sha256sum cu-windows-amd64/cu-windows-amd64.exe >> checksums.txt
+          echo "" >> checksums.txt
+          cat checksums.txt
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            cu-linux-amd64/cu-linux-amd64.AppImage
+            cu-linux-amd64/cu-linux-amd64.zip
+            cu-macos-universal/cu-macos-universal.dmg
+            cu-windows-amd64/cu-windows-amd64.exe
+            checksums.txt
+          name: Core Utils CLI ${{ env.VERSION }}
+          body: |
+            Core Utils CLI automated release.
+
+            Assets:
+            - Linux AppImage (amd64)
+            - Linux binary zip (amd64)
+            - macOS DMG (universal: amd64 + arm64)
+            - Windows EXE (amd64)
+
+            Notes:
+            - macOS build is currently unsigned and not notarized. Gatekeeper may show a warning.
+            - Windows executable is currently unsigned. SmartScreen may show a warning.
+            - Verify downloads using checksums.txt.
+          draft: false
+          prerelease: false

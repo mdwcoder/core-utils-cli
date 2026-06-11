@@ -138,6 +138,53 @@ CORE_UTILS_REGISTRY_URL=http://localhost:8000/api/registry ./bin/cu search notes
 CORE_UTILS_REGISTRY_URL=http://localhost:8000/api/registry ./bin/cu info memory-note-cli
 ```
 
+## Releases
+
+Automated releases are published via GitHub Actions when a tag matching `v*.*.*` is pushed.
+
+### Creating a release
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The workflow can also be triggered manually from the Actions tab in GitHub.
+
+### Generated artifacts
+
+| File | Platform | Format |
+|------|----------|--------|
+| `cu-linux-amd64.AppImage` | Linux (amd64) | AppImage |
+| `cu-linux-amd64.zip` | Linux (amd64) | ZIP archive |
+| `cu-macos-universal.dmg` | macOS (universal) | DMG |
+| `cu-windows-amd64.exe` | Windows (amd64) | Portable executable |
+| `checksums.txt` | All | SHA256 checksums |
+
+### Verifying downloads
+
+**Linux:**
+```bash
+sha256sum -c checksums.txt
+```
+
+**macOS:**
+```bash
+shasum -a 256 cu-macos-universal.dmg
+```
+
+**Windows (PowerShell):**
+```powershell
+Get-FileHash .\cu-windows-amd64.exe -Algorithm SHA256
+```
+
+### Known limitations
+
+- **macOS DMG** is unsigned and not notarized. Gatekeeper will block execution unless you right-click → Open.
+- **Windows EXE** is unsigned. SmartScreen may show a warning.
+- **AppImage** is built for Linux amd64 without AppStream metadata. On systems without FUSE, use `--appimage-extract-and-run`.
+- Future releases may include `.tar.gz` archives for direct distribution.
+
 ## Environment Variables
 
 | Variable | Description |
