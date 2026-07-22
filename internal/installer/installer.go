@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -111,8 +112,14 @@ func Install(tool *registry.Tool, force bool) error {
 		return fmt.Errorf("%s is already installed (%s). Use update to change version", tool.ID, existing.Version)
 	}
 
-	// Download to temp
-	tempFile := filepath.Join(config.BaseDir, fmt.Sprintf(".%s-%s.tmp", tool.ID, tool.Version))
+	// Download to temp. The archive extractor picks its format from the file
+	// extension, so the temp file must keep the asset's original extension
+	// (e.g. .tar.gz, .zip) rather than a generic .tmp suffix.
+	assetExt := path.Ext(plat.URL)
+	if strings.HasSuffix(strings.ToLower(plat.URL), ".tar.gz") {
+		assetExt = ".tar.gz"
+	}
+	tempFile := filepath.Join(config.BaseDir, fmt.Sprintf(".%s-%s.tmp%s", tool.ID, tool.Version, assetExt))
 	output.Printf("Downloading %s for %s...\n", tool.ID, platKey)
 	if err := registry.DownloadAsset(plat.URL, tempFile); err != nil {
 		os.Remove(tempFile)
