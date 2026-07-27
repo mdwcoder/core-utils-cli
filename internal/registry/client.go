@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -26,6 +27,9 @@ func Fetch() (*Registry, error) {
 	req.Header.Set("User-Agent", "core-utils-cli/"+config.AppVersion)
 
 	client := &http.Client{Timeout: 10 * time.Second}
+	if config.CUDManaged() {
+		client.CheckRedirect = rejectUntrustedRedirect
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -61,6 +65,12 @@ func DownloadAsset(url string, destPath string) error {
 	req.Header.Set("User-Agent", "core-utils-cli/"+config.AppVersion)
 
 	client := &http.Client{Timeout: 60 * time.Second}
+	if config.CUDManaged() {
+		if !allowedCUDAssetURL(req.URL) {
+			return fmt.Errorf("CUD-managed downloads require an approved HTTPS release host")
+		}
+		client.CheckRedirect = rejectUntrustedRedirect
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -82,4 +92,23 @@ func DownloadAsset(url string, destPath string) error {
 		return err
 	}
 	return out.Close()
+}
+
+func rejectUntrustedRedirect(req *http.Request, _ []*http.Request) error {
+	if config.CUDManaged() && !allowedCUDAssetURL(req.URL) && req.URL.String() != config.OfficialRegistryURL {
+		return fmt.Errorf("redirect outside approved CoreUtils sources")
+	}
+	return nil
+}
+
+func allowedCUDAssetURL(value *url.URL) bool {
+	if value == nil || value.Scheme != "https" || value.User != nil {
+		return false
+	}
+	switch value.Hostname() {
+	case "api.core-utils.dev", "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com":
+		return true
+	default:
+		return false
+	}
 }

@@ -132,6 +132,8 @@ func Install(tool *registry.Tool, force bool) error {
 		if err := checksum.ValidateFile(tempFile, plat.Sha256); err != nil {
 			return fmt.Errorf("checksum validation failed: %w", err)
 		}
+	} else if config.CUDManaged() {
+		return fmt.Errorf("CUD-managed installation requires a SHA-256 checksum")
 	} else {
 		output.StatusWarn("Checksum", "sha256 is CHANGE_ME/placeholder — skipping validation")
 	}

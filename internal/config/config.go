@@ -13,9 +13,10 @@ var (
 )
 
 const (
-	AppName            = "cu"
-	AppVersion         = "0.2.0"
-	DefaultRegistryURL = "https://core-utils.dev/api/registry"
+	AppName             = "cu"
+	AppVersion          = "0.2.0"
+	DefaultRegistryURL  = "https://core-utils.dev/api/registry"
+	OfficialRegistryURL = "https://api.core-utils.dev/api/registry"
 )
 
 var (
@@ -85,6 +86,9 @@ func SaveConfig(c *Config) error {
 }
 
 func GetRegistryURL() string {
+	if CUDManaged() {
+		return OfficialRegistryURL
+	}
 	if env := os.Getenv("CORE_UTILS_REGISTRY_URL"); env != "" {
 		return env
 	}
@@ -94,3 +98,7 @@ func GetRegistryURL() string {
 	}
 	return DefaultRegistryURL
 }
+
+// CUDManaged prevents a browser-initiated installation from inheriting a
+// user-configured registry source.
+func CUDManaged() bool { return os.Getenv("CORE_UTILS_CUD_MANAGED") == "1" }
